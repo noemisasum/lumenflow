@@ -36,10 +36,10 @@ export default function LoginPage() {
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
       <div className="flex min-h-screen items-center justify-center p-8">
         <main className="w-full max-w-sm rounded-2xl bg-white p-6 shadow">
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col items-center gap-2">
             <img src="/lumenflow-logo.jpg" alt="LumenFlow" className="h-6 w-auto" />
-            <h1 className="text-lg font-semibold">Sign-in</h1>
-            <div className="text-xs text-zinc-500">
+            <h1 className="text-base font-semibold">Sign-in</h1>
+            <div className="text-xs text-zinc-400">
               Don’t have an account?{" "}
               <a href="/signup" className="font-medium text-zinc-900 underline underline-offset-2">
                 Sign up
@@ -47,7 +47,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <form className="mt-5 space-y-3">
+          <form className="mt-4 space-y-3">
             <div className="space-y-1">
               <label className="text-xs font-medium text-zinc-600">Email</label>
               <input
@@ -55,7 +55,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 type="email"
                 required
-                className="h-11 w-full rounded-lg border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-400"
+                className="h-10 w-full rounded-lg border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-400"
                 placeholder=""
               />
             </div>
@@ -67,7 +67,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 type="password"
                 required
-                className="h-11 w-full rounded-lg border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-400"
+                className="h-10 w-full rounded-lg border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-400"
                 placeholder=""
               />
             </div>
@@ -75,7 +75,7 @@ export default function LoginPage() {
             <button
               onClick={signInPassword}
               disabled={loading}
-              className="h-11 w-full rounded-lg bg-black px-4 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60"
+              className="h-10 w-full rounded-lg bg-black px-4 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60"
             >
               {loading ? "…" : "Continue"}
             </button>
