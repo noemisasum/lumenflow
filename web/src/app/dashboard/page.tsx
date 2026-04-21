@@ -108,9 +108,9 @@ export default function DashboardPage() {
               <div className="text-sm font-semibold">Approvals</div>
               <div className="mt-1 text-sm text-zinc-600">Review items awaiting approval.</div>
             </a>
-            <a href="#" className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-100 hover:bg-zinc-50">
+            <a href="/dashboard/invoices" className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-100 hover:bg-zinc-50">
               <div className="text-sm font-semibold">Invoices</div>
-              <div className="mt-1 text-sm text-zinc-600">Track invoice intake and payable queue.</div>
+              <div className="mt-1 text-sm text-zinc-600">Upload and track invoice intake.</div>
             </a>
           </div>
 
