@@ -22,7 +22,7 @@ export default function LoginPage() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      window.location.href = "/";
+      window.location.href = "/dashboard";
     } catch (err: any) {
       setMsg(err?.message || "Sign in failed");
     } finally {
