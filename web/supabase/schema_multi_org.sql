@@ -134,22 +134,26 @@ alter table public.invoices enable row level security;
 alter table public.invoice_files enable row level security;
 
 -- orgs: can view orgs you are a member of
-create policy if not exists orgs_select_member on public.orgs
+drop policy if exists orgs_select_member on public.orgs;
+create policy orgs_select_member on public.orgs
 for select to authenticated
 using (public.is_org_member(id));
 
 -- org_members: can view org memberships for your orgs
-create policy if not exists org_members_select_member on public.org_members
+drop policy if exists org_members_select_member on public.org_members;
+create policy org_members_select_member on public.org_members
 for select to authenticated
 using (public.is_org_member(org_id));
 
--- entities: can view entities under your orgs (or if you are entity member)
-create policy if not exists entities_select_member on public.entities
+-- entities: can view entities under your orgs
+drop policy if exists entities_select_member on public.entities;
+create policy entities_select_member on public.entities
 for select to authenticated
 using (public.is_org_member(org_id));
 
 -- entity_members: can view entity memberships for entities in your org
-create policy if not exists entity_members_select_member on public.entity_members
+drop policy if exists entity_members_select_member on public.entity_members;
+create policy entity_members_select_member on public.entity_members
 for select to authenticated
 using (
   exists(
@@ -161,12 +165,14 @@ using (
 );
 
 -- invoices: can select invoices in entities you are a member of
-create policy if not exists invoices_select_entity_member on public.invoices
+drop policy if exists invoices_select_entity_member on public.invoices;
+create policy invoices_select_entity_member on public.invoices
 for select to authenticated
 using (public.is_entity_member(entity_id));
 
 -- invoices: can insert invoices only into entities you belong to AND org matches entity
-create policy if not exists invoices_insert_entity_member on public.invoices
+drop policy if exists invoices_insert_entity_member on public.invoices;
+create policy invoices_insert_entity_member on public.invoices
 for insert to authenticated
 with check (
   created_by = auth.uid()
@@ -179,18 +185,21 @@ with check (
 );
 
 -- invoices: can update invoices in entities you belong to
-create policy if not exists invoices_update_entity_member on public.invoices
+drop policy if exists invoices_update_entity_member on public.invoices;
+create policy invoices_update_entity_member on public.invoices
 for update to authenticated
 using (public.is_entity_member(entity_id))
 with check (public.is_entity_member(entity_id));
 
 -- invoice_files: select only for invoices in entities you belong to
-create policy if not exists invoice_files_select_entity_member on public.invoice_files
+drop policy if exists invoice_files_select_entity_member on public.invoice_files;
+create policy invoice_files_select_entity_member on public.invoice_files
 for select to authenticated
 using (public.is_entity_member(entity_id));
 
 -- invoice_files: insert only into entities you belong to AND org matches entity
-create policy if not exists invoice_files_insert_entity_member on public.invoice_files
+drop policy if exists invoice_files_insert_entity_member on public.invoice_files;
+create policy invoice_files_insert_entity_member on public.invoice_files
 for insert to authenticated
 with check (
   created_by = auth.uid()
