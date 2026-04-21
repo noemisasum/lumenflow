@@ -5,8 +5,14 @@ import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 import type { StoredObjectRef } from "@/lib/storage/types";
 import { getStorageAdapter } from "@/lib/storage";
 
+type OrgRow = { id: string; name: string; slug: string };
+
+type EntityRow = { id: string; org_id: string; name: string; code: string | null };
+
 type InvoiceRow = {
   id: string;
+  org_id: string;
+  entity_id: string;
   status: string;
   vendor_name: string | null;
   description: string | null;
@@ -18,6 +24,8 @@ type InvoiceRow = {
 type InvoiceFileRow = {
   id: string;
   invoice_id: string;
+  org_id: string;
+  entity_id: string;
   provider: StoredObjectRef["provider"];
   bucket: string;
   object_key: string;
@@ -32,6 +40,11 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  const [orgs, setOrgs] = useState<OrgRow[]>([]);
+  const [entities, setEntities] = useState<EntityRow[]>([]);
+  const [orgId, setOrgId] = useState<string>("");
+  const [entityId, setEntityId] = useState<string>("");
 
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [filesByInvoice, setFilesByInvoice] = useState<Record<string, InvoiceFileRow[]>>({});
@@ -57,37 +70,102 @@ export default function InvoicesPage() {
       const sess = await ensureSession();
       if (!sess) return;
 
-      const { data: invs, error: invErr } = await supabase
-        .from("invoices")
-        .select("id,status,vendor_name,description,currency,total,created_at")
-        .order("created_at", { ascending: false })
-        .limit(50);
+      // Try multi-org tables first; if they don't exist, fall back to single-user mode.
+      let detectedMultiOrg = false;
+      const { data: orgRows, error: orgErr } = await supabase.from("orgs").select("id,name,slug").order("name");
+      if (!orgErr && orgRows) {
+        detectedMultiOrg = true;
+        setOrgs(orgRows as OrgRow[]);
 
-      if (invErr) throw invErr;
-      const rows = (invs || []) as InvoiceRow[];
-      setInvoices(rows);
+        // Entities the user can see (RLS filtered)
+        const { data: entRows, error: entErr } = await supabase
+          .from("entities")
+          .select("id,org_id,name,code")
+          .order("name");
+        if (entErr) throw entErr;
+        const ents = (entRows || []) as EntityRow[];
+        setEntities(ents);
 
-      const ids = rows.map((r) => r.id);
-      if (!ids.length) {
-        setFilesByInvoice({});
-        return;
+        // Initialize selection if empty
+        const currentOrgId = orgId || (orgRows[0]?.id as string) || "";
+        const currentEntityId = entityId || ents.find((e) => e.org_id === currentOrgId)?.id || "";
+        if (currentOrgId && currentOrgId !== orgId) setOrgId(currentOrgId);
+        if (currentEntityId && currentEntityId !== entityId) setEntityId(currentEntityId);
+
+        // Only load invoices once we have an entity selected
+        if (!currentEntityId) {
+          setInvoices([]);
+          setFilesByInvoice({});
+          return;
+        }
+
+        const { data: invs, error: invErr } = await supabase
+          .from("invoices")
+          .select("id,org_id,entity_id,status,vendor_name,description,currency,total,created_at")
+          .eq("entity_id", currentEntityId)
+          .order("created_at", { ascending: false })
+          .limit(50);
+
+        if (invErr) throw invErr;
+        const rows = (invs || []) as InvoiceRow[];
+        setInvoices(rows);
+
+        const ids = rows.map((r) => r.id);
+        if (!ids.length) {
+          setFilesByInvoice({});
+          return;
+        }
+
+        const { data: files, error: fErr } = await supabase
+          .from("invoice_files")
+          .select("id,invoice_id,org_id,entity_id,provider,bucket,object_key,mime_type,size_bytes,created_at")
+          .in("invoice_id", ids)
+          .order("created_at", { ascending: false });
+
+        if (fErr) throw fErr;
+
+        const grouped: Record<string, InvoiceFileRow[]> = {};
+        for (const f of (files || []) as any[]) {
+          const invId = f.invoice_id as string;
+          grouped[invId] = grouped[invId] || [];
+          grouped[invId].push(f as InvoiceFileRow);
+        }
+        setFilesByInvoice(grouped);
       }
 
-      const { data: files, error: fErr } = await supabase
-        .from("invoice_files")
-        .select("id,invoice_id,provider,bucket,object_key,mime_type,size_bytes,created_at")
-        .in("invoice_id", ids)
-        .order("created_at", { ascending: false });
+      if (!detectedMultiOrg) {
+        // Single-user mode (schema.sql)
+        const { data: invs, error: invErr } = await supabase
+          .from("invoices")
+          .select("id,status,vendor_name,description,currency,total,created_at")
+          .order("created_at", { ascending: false })
+          .limit(50);
 
-      if (fErr) throw fErr;
+        if (invErr) throw invErr;
+        const rows = (invs || []) as any as InvoiceRow[];
+        setInvoices(rows);
 
-      const grouped: Record<string, InvoiceFileRow[]> = {};
-      for (const f of (files || []) as any[]) {
-        const invId = f.invoice_id as string;
-        grouped[invId] = grouped[invId] || [];
-        grouped[invId].push(f as InvoiceFileRow);
+        const ids = rows.map((r) => r.id);
+        if (!ids.length) {
+          setFilesByInvoice({});
+          return;
+        }
+
+        const { data: files, error: fErr } = await supabase
+          .from("invoice_files")
+          .select("id,invoice_id,provider,bucket,object_key,mime_type,size_bytes,created_at")
+          .in("invoice_id", ids)
+          .order("created_at", { ascending: false });
+
+        if (fErr) throw fErr;
+        const grouped: Record<string, InvoiceFileRow[]> = {};
+        for (const f of (files || []) as any[]) {
+          const invId = f.invoice_id as string;
+          grouped[invId] = grouped[invId] || [];
+          grouped[invId].push(f as InvoiceFileRow);
+        }
+        setFilesByInvoice(grouped);
       }
-      setFilesByInvoice(grouped);
     } catch (e: any) {
       setError(e?.message || "Failed to load invoices");
     } finally {
@@ -100,6 +178,14 @@ export default function InvoicesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    // Reload when entity changes (multi-org mode)
+    if (!entityId) return;
+    setLoading(true);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entityId]);
+
   async function onUpload(file: File) {
     try {
       if (!supabase) throw new Error("Missing Supabase env vars");
@@ -110,13 +196,20 @@ export default function InvoicesPage() {
       setError(null);
 
       // 1) Create invoice row
+      const insertPayload: any = {
+        created_by: sess.user.id,
+        status: "UPLOADED",
+        currency: "USD",
+      };
+      // In multi-org schema, entity/org are required.
+      if (orgId && entityId) {
+        insertPayload.org_id = orgId;
+        insertPayload.entity_id = entityId;
+      }
+
       const { data: created, error: cErr } = await supabase
         .from("invoices")
-        .insert({
-          created_by: sess.user.id,
-          status: "UPLOADED",
-          currency: "USD",
-        })
+        .insert(insertPayload)
         .select("id")
         .single();
 
@@ -135,7 +228,7 @@ export default function InvoicesPage() {
       if (uErr) throw uErr;
 
       // 3) Create invoice_files row (future-proof ref)
-      const { error: fErr } = await supabase.from("invoice_files").insert({
+      const filePayload: any = {
         invoice_id: invoiceId,
         created_by: sess.user.id,
         provider: "supabase",
@@ -143,7 +236,12 @@ export default function InvoicesPage() {
         object_key: objectKey,
         mime_type: file.type || null,
         size_bytes: file.size,
-      });
+      };
+      if (orgId && entityId) {
+        filePayload.org_id = orgId;
+        filePayload.entity_id = entityId;
+      }
+      const { error: fErr } = await supabase.from("invoice_files").insert(filePayload);
       if (fErr) throw fErr;
 
       await load();
@@ -184,21 +282,45 @@ export default function InvoicesPage() {
                 <div className="text-sm font-semibold">Upload invoice</div>
                 <div className="mt-1 text-sm text-zinc-600">PDF or image.</div>
               </div>
-              <label className="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg bg-black px-4 text-sm font-medium text-white hover:bg-zinc-800">
-                <input
-                  type="file"
-                  className="hidden"
-                  accept="application/pdf,image/*"
-                  disabled={uploading}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) onUpload(f);
-                    e.currentTarget.value = "";
-                  }}
-                />
-                {uploading ? "Uploading…" : "Upload"}
-              </label>
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                {orgs.length ? (
+                  <select
+                    value={entityId}
+                    onChange={(e) => setEntityId(e.target.value)}
+                    className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm"
+                    title="Entity"
+                  >
+                    {entities
+                      .filter((x) => x.org_id === orgId)
+                      .map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.name}
+                        </option>
+                      ))}
+                  </select>
+                ) : null}
+
+                <label className="inline-flex h-10 cursor-pointer items-center justify-center rounded-lg bg-black px-4 text-sm font-medium text-white hover:bg-zinc-800">
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="application/pdf,image/*"
+                    disabled={uploading || (!!orgs.length && !entityId)}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) onUpload(f);
+                      e.currentTarget.value = "";
+                    }}
+                  />
+                  {uploading ? "Uploading…" : "Upload"}
+                </label>
+              </div>
             </div>
+
+            {orgs.length && !entityId ? (
+              <div className="mt-4 text-sm text-zinc-600">Select an entity to upload.</div>
+            ) : null}
 
             {error ? <div className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{error}</div> : null}
           </div>
