@@ -10,10 +10,17 @@ In Supabase Dashboard → Storage:
 
 ## 2) Apply schema + RLS
 
+Choose one:
+
+### Option A (current MVP, single-user scope)
 In Supabase Dashboard → SQL Editor:
 - Run `supabase/schema.sql`
 
+### Option B (recommended, multi-org + multi-entity)
+In Supabase Dashboard → SQL Editor:
+- Run `supabase/schema_multi_org.sql`
+
 ## Notes
 
-- This MVP schema scopes invoice access to the **signed-in user** (`created_by = auth.uid()`), which is safe and simple.
-- We can expand to Organizations/Teams later.
+- `schema.sql` scopes invoice access to the **signed-in user** (`created_by = auth.uid()`), which is safe and simple.
+- `schema_multi_org.sql` adds **orgs + entities + membership** and scopes access by membership (future-proof for real teams).
