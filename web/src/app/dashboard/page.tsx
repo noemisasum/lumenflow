@@ -114,6 +114,13 @@ export default function DashboardPage() {
             </a>
           </div>
 
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <a href="/dashboard/settings/xero" className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-100 hover:bg-zinc-50">
+              <div className="text-sm font-semibold">Xero</div>
+              <div className="mt-1 text-sm text-zinc-600">Connect Xero and map tenants per entity.</div>
+            </a>
+          </div>
+
           <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-100">
             <div className="text-sm font-semibold">Next steps</div>
             <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-zinc-700">
