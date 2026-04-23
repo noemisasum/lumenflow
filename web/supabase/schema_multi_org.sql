@@ -89,6 +89,29 @@ create table if not exists public.invoice_files (
 create index if not exists invoice_files_invoice_id_idx on public.invoice_files(invoice_id);
 create index if not exists invoice_files_entity_id_idx on public.invoice_files(entity_id);
 
+-- Xero connections (org-level OAuth token storage)
+create table if not exists public.xero_connections (
+  org_id uuid primary key references public.orgs(id) on delete cascade,
+  access_token text not null,
+  refresh_token text not null,
+  expires_at timestamptz not null,
+  scope text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Xero tenants available to the org connection
+create table if not exists public.xero_tenants (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.orgs(id) on delete cascade,
+  tenant_id text not null,
+  tenant_name text not null,
+  tenant_type text,
+  created_at timestamptz not null default now(),
+  unique (org_id, tenant_id)
+);
+create index if not exists xero_tenants_org_id_idx on public.xero_tenants(org_id);
+
 -- updated_at trigger
 create or replace function public.set_updated_at()
 returns trigger as $$
@@ -101,6 +124,12 @@ $$ language plpgsql;
 drop trigger if exists set_invoices_updated_at on public.invoices;
 create trigger set_invoices_updated_at
 before update on public.invoices
+for each row execute function public.set_updated_at();
+
+-- updated_at trigger for xero_connections
+drop trigger if exists set_xero_connections_updated_at on public.xero_connections;
+create trigger set_xero_connections_updated_at
+before update on public.xero_connections
 for each row execute function public.set_updated_at();
 
 -- Helper: check org membership
@@ -132,6 +161,8 @@ alter table public.entities enable row level security;
 alter table public.entity_members enable row level security;
 alter table public.invoices enable row level security;
 alter table public.invoice_files enable row level security;
+alter table public.xero_connections enable row level security;
+alter table public.xero_tenants enable row level security;
 
 -- orgs: can view orgs you are a member of
 drop policy if exists orgs_select_member on public.orgs;
@@ -210,3 +241,15 @@ with check (
       and e.org_id = invoice_files.org_id
   )
 );
+
+-- Xero tenants: readable by org members (no secrets here)
+drop policy if exists xero_tenants_select_org_member on public.xero_tenants;
+create policy xero_tenants_select_org_member on public.xero_tenants
+for select to authenticated
+using (public.is_org_member(org_id));
+
+-- Xero connections: do NOT allow client-side select (tokens are secrets)
+drop policy if exists xero_connections_deny_select on public.xero_connections;
+create policy xero_connections_deny_select on public.xero_connections
+for select to authenticated
+using (false);
